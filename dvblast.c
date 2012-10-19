@@ -48,6 +48,7 @@
 #include <bitstream/ietf/rtp.h>
 
 #include "mrtg-cnt.h"
+#include "sap.h"
 
 /*****************************************************************************
  * Local declarations
@@ -103,6 +104,8 @@ volatile sig_atomic_t b_exit_now = 0;
 int i_verbose = DEFAULT_VERBOSITY;
 int i_syslog = 0;
 char *psz_syslog_ident = NULL;
+
+int b_enable_sap = 0;
 
 bool b_enable_emm = false;
 bool b_enable_ecm = false;
@@ -572,6 +575,7 @@ void usage()
     msg_Raw( NULL, "  -q --quiet            be quiet (less verbosity, repeat or use number for even quieter)" );
     msg_Raw( NULL, "  -Q --quit-timeout     when locked, quit after this delay (in ms), or after the first lock timeout" );
     msg_Raw( NULL, "  -r --remote-socket <remote socket>" );
+    msg_Raw( NULL, "     --sap              announce streams via sdp/sap");
     msg_Raw( NULL, "  -V --version          only display the version" );
     msg_Raw( NULL, "  -Z --mrtg-file <file> Log input packets and errors into mrtg-file" );
     exit(1);
@@ -657,10 +661,12 @@ int main( int i_argc, char **pp_argv )
         { "ca-number",       required_argument, NULL, 'y' },
         { "pidmap",          required_argument, NULL, '0' },
         { "dvr-buf-size",    required_argument, NULL, '2' },
+        { "sap",             no_argument,       &b_enable_sap, 1 },
         { 0, 0, 0, 0 }
     };
 
-    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:5:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:y:0:1:2:", long_options, NULL)) != -1 )
+    int option_index = 0;
+    while ( (c = getopt_long(i_argc, pp_argv, "q::c:r:t:o:i:a:n:5:f:F:R:s:S:k:v:pb:I:m:P:K:G:H:X:O:uwUTL:E:d:D:A:lg:zCWYeM:N:j:J:B:x:Q:hVZ:y:0:1:2:", long_options, &option_index)) != -1 )
     {
         switch ( c )
         {
@@ -1002,7 +1008,8 @@ int main( int i_argc, char **pp_argv )
 #endif
         case 'h':
         default:
-            usage();
+            if(!option_index)
+                usage();
         }
     }
     if ( optind < i_argc || pf_Open == NULL )
@@ -1123,6 +1130,9 @@ int main( int i_argc, char **pp_argv )
 
     config_ReadFile( psz_conf_file );
 
+    if ( b_enable_sap )
+        sap_Init();
+
     if ( psz_srv_socket != NULL )
         comm_Open();
 
@@ -1141,6 +1151,11 @@ int main( int i_argc, char **pp_argv )
             b_conf_reload = 0;
             msg_Info( NULL, "Configuration reload was requested." );
             config_ReadFile( psz_conf_file );
+        }
+
+        if ( b_enable_sap )
+        {
+            sap_Announce();
         }
 
         if ( i_quit_timeout && i_quit_timeout <= i_wallclock )
@@ -1171,6 +1186,9 @@ int main( int i_argc, char **pp_argv )
     outputs_Close( i_nb_outputs );
     demux_Close();
     free( p_network_name );
+
+    if ( b_enable_sap )
+        sap_Close();
 
     if ( b_enable_syslog )
         msg_Disconnect();
