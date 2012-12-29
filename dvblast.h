@@ -162,6 +162,7 @@ typedef struct output_t
     uint8_t i_nit_version, i_nit_cc;
     uint8_t *p_sdt_section;
     uint8_t i_sdt_version, i_sdt_cc;
+    uint8_t *p_eit_epg_section;
     block_t *p_eit_ts_buffer;
     uint8_t i_eit_ts_buffer_offset, i_eit_cc;
     uint16_t i_tsid;

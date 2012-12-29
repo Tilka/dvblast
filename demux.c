@@ -47,6 +47,7 @@
 #include <bitstream/dvb/si.h>
 #include <bitstream/dvb/si_print.h>
 #include <bitstream/mpeg/psi_print.h>
+#include "bitstream_patch.h"
 
 extern bool b_enable_emm;
 extern bool b_enable_ecm;
@@ -1173,6 +1174,19 @@ static void SendEIT( sid_t *p_sid, mtime_t i_dts, uint8_t *p_eit )
                 eit_set_sid( p_eit, p_output->config.i_sid );
 
             psi_set_crc( p_eit );
+
+            int j = 0;
+            uint8_t *p_eit_n;
+            while(( p_eit_n = eit_get_event(p_eit,j++)) != NULL )
+            {
+                if ( eitn_get_running_status( p_eit_n ) == 4 )
+                {
+                    free( p_output->p_eit_epg_section );
+                    p_output->p_eit_epg_section = psi_allocate();
+                    psi_copy( p_output->p_eit_epg_section, p_eit );
+                    break;
+                }
+            }
 
             OutputPSISection( p_output, p_eit, EIT_PID, &p_output->i_eit_cc,
                               i_dts, &p_output->p_eit_ts_buffer,

@@ -575,7 +575,10 @@ void usage()
     msg_Raw( NULL, "  -q --quiet            be quiet (less verbosity, repeat or use number for even quieter)" );
     msg_Raw( NULL, "  -Q --quit-timeout     when locked, quit after this delay (in ms), or after the first lock timeout" );
     msg_Raw( NULL, "  -r --remote-socket <remote socket>" );
-    msg_Raw( NULL, "     --sap              announce streams via sdp/sap");
+    msg_Raw( NULL, "     --sap              announce streams via SAP/SDP");
+    msg_Raw( NULL, "     --sap-ip4 <ip4>    multicast IPv4 address for SAP announcements (default: %s)", SAP_DEFAULT_IP4_ADDR);
+    msg_Raw( NULL, "     --sap-ip6 <ip6>    multicast IPv6 address for SAP announcements (default: %s)", SAP_DEFAULT_IP6_ADDR);
+    msg_Raw( NULL, "     --sap-interval <secs> time interval between announcements per stream (default 1)");
     msg_Raw( NULL, "  -V --version          only display the version" );
     msg_Raw( NULL, "  -Z --mrtg-file <file> Log input packets and errors into mrtg-file" );
     exit(1);
@@ -662,6 +665,9 @@ int main( int i_argc, char **pp_argv )
         { "pidmap",          required_argument, NULL, '0' },
         { "dvr-buf-size",    required_argument, NULL, '2' },
         { "sap",             no_argument,       &b_enable_sap, 1 },
+        { "sap-ip4",         required_argument, NULL,  1001 },
+        { "sap-ip6",         required_argument, NULL,  1002 },
+        { "sap-interval",    required_argument, NULL,  1003 },
         { 0, 0, 0, 0 }
     };
 
@@ -908,7 +914,7 @@ int main( int i_argc, char **pp_argv )
         case 'Y':
             b_enable_ecm = true;
             break;
- 
+
         case 'e':
             b_epg_global = true;
             break;
@@ -1006,9 +1012,39 @@ int main( int i_argc, char **pp_argv )
             i_dvr_buffer_size *= TS_SIZE;
             break;
 #endif
+
+        case 1001: // sap-ip4
+            if ( inet_pton(AF_INET, optarg, &g_sap_ip4_dest) != 1 )
+            {
+                msg_Err( NULL, "Invalid SAP IPv4 address" );
+                exit(EXIT_FAILURE);
+            }
+            if ( !IN_MULTICAST(ntohl(g_sap_ip4_dest)) )
+                msg_Warn( NULL, "SAP IPv4 address is not a multicast address (using it anyway)" );
+            break;
+
+        case 1002: // sap-ip6
+            if ( inet_pton(AF_INET6, optarg, &g_sap_ip6_dest) != 1 )
+            {
+                msg_Err( NULL, "Invalid SAP IPv6 address" );
+                exit(EXIT_FAILURE);
+            }
+            if ( !IN6_IS_ADDR_MULTICAST( &g_sap_ip6_dest ) )
+                msg_Warn( NULL, "SAP IPv6 address is not a multicast address (using it anyway)" );
+            break;
+
+        case 1003: // sap-interval
+            g_sap_interval = atoi(optarg);
+            if ( g_sap_interval < 1 )
+                g_sap_interval = 1;
+            break;
+
         case 'h':
+            usage();
+            break;
+
         default:
-            if(!option_index)
+            if ( !option_index )
                 usage();
         }
     }
@@ -1022,7 +1058,7 @@ int main( int i_argc, char **pp_argv )
         DisplayVersion();
 
     msg_Warn( NULL, "restarting" );
-    switch (i_print_type) 
+    switch (i_print_type)
     {
         case PRINT_XML:
             printf("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
@@ -1154,9 +1190,7 @@ int main( int i_argc, char **pp_argv )
         }
 
         if ( b_enable_sap )
-        {
             sap_Announce();
-        }
 
         if ( i_quit_timeout && i_quit_timeout <= i_wallclock )
         {

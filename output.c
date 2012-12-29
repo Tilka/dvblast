@@ -185,6 +185,7 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
     p_output->p_pmt_section = NULL;
     p_output->p_nit_section = NULL;
     p_output->p_sdt_section = NULL;
+    p_output->p_eit_epg_section = NULL;
     p_output->p_eit_ts_buffer = NULL;
     if ( b_random_tsid )
         p_output->i_tsid = rand() & 0xffff;
@@ -216,9 +217,9 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
     int ret = 0;
     if ( p_config->bind_addr.ss_family != AF_UNSPEC )
     {
-        if ( bind( p_output->i_handle, (struct sockaddr *)&p_config->bind_addr,
-                   i_sockaddr_len ) < 0 )
-            msg_Warn( NULL, "couldn't bind socket (%s)", strerror(errno) );
+//        if ( bind( p_output->i_handle, (struct sockaddr *)&p_config->bind_addr,
+//                   i_sockaddr_len ) < 0 )
+//            msg_Warn( NULL, "couldn't bind socket (%s)", strerror(errno) );
 
         if ( p_config->i_family == AF_INET )
         {
@@ -301,6 +302,7 @@ void output_Close( output_t *p_output )
     free( p_output->p_pmt_section );
     free( p_output->p_nit_section );
     free( p_output->p_sdt_section );
+    free( p_output->p_eit_epg_section );
     free( p_output->p_eit_ts_buffer );
     p_output->config.i_config &= ~OUTPUT_VALID;
 
