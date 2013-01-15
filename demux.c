@@ -1179,7 +1179,7 @@ static void SendEIT( sid_t *p_sid, mtime_t i_dts, uint8_t *p_eit )
             uint8_t *p_eit_n;
             while(( p_eit_n = eit_get_event(p_eit,j++)) != NULL )
             {
-                if ( eitn_get_running_status( p_eit_n ) == 4 )
+                if ( eitn_get_running( p_eit_n ) == 4 )
                 {
                     free( p_output->p_eit_epg_section );
                     p_output->p_eit_epg_section = psi_allocate();
