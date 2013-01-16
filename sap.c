@@ -38,7 +38,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-
+#include <locale.h>
 #include <errno.h>
 
 #include <bitstream/dvb/si/sdt.h>
@@ -66,12 +66,65 @@ static int i_next_output = 0;
 static struct sockaddr_in  addr4;
 static struct sockaddr_in6 addr6;
 
-static size_t dvb_string_copy( char *dest, size_t desc_max_len,
+/* Checks if the UTF-8 character pointed to by chr is a DVB control code
+ * as defined by EN 300 468 Annex A.1. */
+static inline int dvb_is_control_code( char *chr, int length )
+{
+    /* c2 80-9f  or  ee 82 80-9f */
+    return ( length == 2 && chr[0] == '\xc2' && (chr[1] & 0xe0) == 0x80 ) ||
+           ( length == 3 && chr[0] == '\xee' && chr[1] == '\x82' && (chr[2] & 0xe0) == 0x80 );
+}
+
+/* Strips DVB control codes in-place and returns the new length.
+ * Probably not very efficient and only supports UTF-8. */
+static size_t dvb_string_strip_control_codes( char *str, size_t size )
+{
+    char *src = str, *dst = str;
+    size_t remaining = size;
+
+    if ( strcmp( psz_native_charset, "UTF-8" ) != 0 )
+    {
+        return size;
+    }
+
+    while ( remaining )
+    {
+        int char_length = mblen( src, remaining );
+        if ( char_length == -1 )
+        {
+            msg_Warn( NULL, "Invalid UTF-8 in DVB string\n" );
+            break;
+        }
+        if ( !dvb_is_control_code( src, char_length ) )
+        {
+            // probably more efficient than memmove()
+            switch ( char_length )
+            {
+            case 4:
+                *dst++ = *src++;
+            case 3:
+                *dst++ = *src++;
+            case 2:
+                *dst++ = *src++;
+            case 1:
+                *dst++ = *src++;
+            }
+        } else {
+            src += char_length;
+        }
+        remaining -= char_length;
+    }
+    return dst - str;
+}
+
+/* Converts a DVB string into native encoding and returns its new size. */
+static size_t dvb_string_copy( char *dest, size_t dest_max_len,
                                const uint8_t *src, size_t src_len )
 {
-    if ( !src_len || !desc_max_len )
+    if ( !src_len || !dest_max_len )
         return 0;
 
+    char *dest_orig = dest;
 #ifdef HAVE_ICONV
     const char *psz_encoding = dvb_string_get_encoding(&src, &src_len);
 
@@ -80,23 +133,30 @@ static size_t dvb_string_copy( char *dest, size_t desc_max_len,
 
     iconv_t p_iconv = iconv_open(psz_native_charset, psz_encoding);
 
-    char *dest_orig = dest;
-    size_t p_remain[2] = {src_len, desc_max_len};
+    size_t p_remain[2] = {src_len, dest_max_len};
     iconv(p_iconv, (char**)&src, p_remain,
-            (char **)&dest, p_remain+1);
+            &dest, p_remain+1);
 
     iconv_close(p_iconv);
 
-    return dest - dest_orig;
+    size_t len = dest - dest_orig;
 #else
-    size_t len = desc_max_len < src_len ? desc_max_len : src_len;
+    size_t len = dest_max_len < src_len ? dest_max_len : src_len;
     memcpy(dest, src, len);
-    return len;
 #endif
+
+    dest_orig[len] = '\0';
+
+    len = dvb_string_strip_control_codes( dest_orig, len );
+
+    return len;
 }
 
 void sap_Init(void)
 {
+    /* required for mblen() */
+    setlocale (LC_ALL, "");
+
     if ( g_sap_ip4_dest == -1 )
         inet_pton(AF_INET, SAP_DEFAULT_IP4_ADDR, &g_sap_ip4_dest);
 
@@ -295,8 +355,7 @@ void sap_Announce(void)
     worker += dvb_string_copy(worker, worker_end-worker, p_text, i_text_len);
     worker += snprintf(worker, worker_end-worker,
                        "\r\n"
-                       "u=http://www.videolan.org/projects/dvblast.html\r\n"
-                       "p=0118 999 881 999 119 725 3\r\n");
+                       "u=http://www.videolan.org/projects/dvblast.html\r\n");
     if ( i_fam == AF_INET6 )
     {
         worker += snprintf(worker, worker_end-worker,
