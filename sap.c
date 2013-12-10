@@ -242,8 +242,6 @@ void sap_Announce(void)
     freeaddrinfo( ai_list );
 
     uint16_t i_sid = 0;            /* service id of this stream */
-    const uint8_t *p_provider = 0; /* name of provider */
-    uint8_t i_provider_len = 0;
     const uint8_t *p_service = 0;  /* name of service */
     uint8_t i_service_len = 0;
     const uint8_t *p_event = 0;    /* name of event */
@@ -267,7 +265,6 @@ void sap_Announce(void)
             {
                 if ( desc_get_tag( p_desc ) == 0x48 && desc48_validate( p_desc ) )
                 {
-                    p_provider = desc48_get_provider( p_desc, &i_provider_len );
                     p_service = desc48_get_service( p_desc, &i_service_len );
                 }
             }
