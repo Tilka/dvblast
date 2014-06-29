@@ -244,6 +244,7 @@ void sap_Announce(void)
     uint16_t i_sid = 0;            /* service id of this stream */
     const uint8_t *p_service = 0;  /* name of service */
     uint8_t i_service_len = 0;
+    uint8_t i_service_type = 0;    /* type of service (see ETSI EN 300 468 table 86) */
     const uint8_t *p_event = 0;    /* name of event */
     uint8_t i_event_len = 0;
     const uint8_t *p_text = 0;     /* long description of event */
@@ -266,6 +267,7 @@ void sap_Announce(void)
                 if ( desc_get_tag( p_desc ) == 0x48 && desc48_validate( p_desc ) )
                 {
                     p_service = desc48_get_service( p_desc, &i_service_len );
+                    i_service_type = desc48_get_type( p_desc );
                 }
             }
         }
@@ -365,6 +367,13 @@ void sap_Announce(void)
                        "c=IN IP4 %s/%d\r\n",
                        psz_session_addr, p_output->config.i_ttl);
     }
+    const char *service_type;
+    switch (i_service_type)
+    {
+    case 1:  service_type = "Television"; break;
+    case 2:  service_type = "Radio";      break;
+    default: service_type = "Unknown";    break;
+    }
     worker += snprintf(worker, worker_end-worker,
                        "t=0 0\r\n"
                        "a=tool:dvblast %s (%s)\r\n"
@@ -373,10 +382,10 @@ void sap_Announce(void)
                        /* now the media-level: */
                        "m=video %s RTP/AVP 33\r\n" /* FIXME: other parts of dvblast also support sending raw UDP */
 //                       "i=Media Title\r\n" // maybe put the description here?
-//                       "a=cat:meine.cat\r\n"
+                       "a=cat:%s\r\n"
 //                       "a=rtpmap:33 MP2T/90000\r\n" // we don't need this because 33 is a standardized RTP type
 //                       "a=lang:de\r\n"
-                       , VERSION, VERSION_EXTRA, psz_native_charset, psz_session_port);
+                       , VERSION, VERSION_EXTRA, psz_native_charset, psz_session_port, service_type);
 
     /* sending this announcement */
     if ( (i_fam == AF_INET  && sendto( p_output->i_handle, buffer, worker-buffer, 0,
