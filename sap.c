@@ -90,6 +90,8 @@ static size_t dvb_string_strip_control_codes( char *str, size_t size )
     while ( remaining )
     {
         int char_length = mblen( src, remaining );
+        if ( char_length == 0 )
+            break;
         if ( char_length == -1 )
         {
             msg_Warn( NULL, "Invalid UTF-8 in DVB string\n" );
